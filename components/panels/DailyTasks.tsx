@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { DAYS } from "@/lib/data";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, addDoc, deleteDoc, getDocs, or } from "firebase/firestore";
 import { useAuth } from "@/components/AuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, Circle, Plus, Trash2, X, Calendar as CalendarIcon, ChevronDown } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, X, Calendar as CalendarIcon, ChevronDown, UserPlus } from "lucide-react";
 import { StrategyEditor } from "./StrategyEditor";
 
 type CustomTask = {
@@ -16,15 +16,30 @@ type CustomTask = {
   isDone: boolean;
   targetType?: string;
   targetBadge?: string;
+  isShared?: boolean;
+  assignedBy?: string;
+  assignedTo?: string[];
+  assignedByEmail?: string;
+  assignedToEmails?: string[];
+  checkedInByEmail?: string | null;
+  date?: string;
+  createdAt?: number;
+  completedAt?: number | null;
 };
 
 const TAG_OPTIONS = [
   { label: "Custom", badge: "b-gray" },
-  { label: "Instagram", badge: "b-blue" },
+  { label: "Instagram", badge: "b-pink" },
   { label: "WhatsApp", badge: "b-green" },
-  { label: "LinkedIn", badge: "b-purple" },
+  { label: "LinkedIn", badge: "b-blue" },
   { label: "Content", badge: "b-amber" },
-  { label: "Check/Fix", badge: "b-red" }
+  { label: "Check/Fix", badge: "b-red" },
+  { label: "Creative", badge: "b-orange" },
+  { label: "Brochure", badge: "b-yellow" },
+  { label: "Printable", badge: "b-lime" },
+  { label: "Site Branding", badge: "b-indigo" },
+  { label: "Video Editing", badge: "b-purple" },
+  { label: "AI Walkthrough", badge: "b-cyan" },
 ];
 
 export function DailyTasks() {
@@ -37,26 +52,58 @@ export function DailyTasks() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDetail, setNewTaskDetail] = useState("");
   const [newTaskTag, setNewTaskTag] = useState(TAG_OPTIONS[0]);
+  const [sharedTasks, setSharedTasks] = useState<CustomTask[]>([]);
+  const [allUsers, setAllUsers] = useState<{uid: string, email: string}[]>([]);
+  const [assignTo, setAssignTo] = useState<string[]>([]);
+  const [editingAssignTask, setEditingAssignTask] = useState<string | null>(null);
+  const [editAssignTo, setEditAssignTo] = useState<string[]>([]);
+  const [taskToDelete, setTaskToDelete] = useState<CustomTask | null>(null);
 
   useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user]);
-
-  const loadData = async () => {
     if (!user) return;
-    try {
-      const docRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(docRef);
+
+    // Fetch users (once)
+    const fetchUsers = async () => {
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        const list: any[] = [];
+        snap.forEach(d => {
+          if (d.id !== user.uid && d.data().email) {
+            list.push({ uid: d.id, email: d.data().email });
+          }
+        });
+        setAllUsers(list);
+      } catch (e) {
+        console.error("Failed to fetch users", e);
+      }
+    };
+    fetchUsers();
+
+    // Personal tasks
+    const docRef = doc(db, "users", user.uid);
+    const unsubPersonal = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.customTasks) setCustomTasks(data.customTasks);
       }
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    });
+
+    // Shared tasks
+    const qShared = query(
+      collection(db, "sharedTasks"), 
+      or(where("assignedTo", "array-contains", user.uid), where("assignedBy", "==", user.uid))
+    );
+    const unsubShared = onSnapshot(qShared, (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push({ ...d.data(), id: d.id, isShared: true }));
+      setSharedTasks(list);
+    });
+
+    return () => {
+      unsubPersonal();
+      unsubShared();
+    };
+  }, [user]);
 
   const saveCustomTasks = async (newCt: any) => {
     try {
@@ -73,51 +120,132 @@ export function DailyTasks() {
 
     const clearHtml = newTaskDetail === '<p></p>' || newTaskDetail === '<p><br></p>' ? '' : newTaskDetail;
 
-    const newTask: CustomTask = {
-      id: Date.now().toString(),
-      t: newTaskTitle,
-      d: clearHtml,
-      isDone: false,
-      targetType: newTaskTag.label,
-      targetBadge: newTaskTag.badge
-    };
+    if (assignTo.length > 0) {
+      const targetEmails = allUsers.filter(u => assignTo.includes(u.uid)).map(u => u.email);
+      await addDoc(collection(db, "sharedTasks"), {
+        t: newTaskTitle,
+        d: clearHtml,
+        isDone: false,
+        targetType: newTaskTag.label,
+        targetBadge: newTaskTag.badge,
+        date: selectedDate,
+        assignedBy: user.uid,
+        assignedByEmail: user.email,
+        assignedTo: assignTo,
+        assignedToEmails: targetEmails,
+        checkedInByEmail: null,
+        createdAt: Date.now(),
+        completedAt: null
+      });
+    } else {
+      const newTask: CustomTask = {
+        id: Date.now().toString(),
+        t: newTaskTitle,
+        d: clearHtml,
+        isDone: false,
+        targetType: newTaskTag.label,
+        targetBadge: newTaskTag.badge,
+        createdAt: Date.now(),
+        completedAt: null
+      };
+      const list = customTasks[selectedDate] || [];
+      const newCt = { ...customTasks, [selectedDate]: [...list, newTask] };
+      setCustomTasks(newCt);
+      await saveCustomTasks(newCt);
+    }
 
-    const list = customTasks[selectedDate] || [];
-    const newCt = { ...customTasks, [selectedDate]: [...list, newTask] };
-    setCustomTasks(newCt);
     setNewTaskTitle("");
     setNewTaskDetail("");
     setNewTaskTag(TAG_OPTIONS[0]);
+    setAssignTo([]);
     setIsAdding(false);
-    await saveCustomTasks(newCt);
   };
 
-  const toggleCustomTask = async (taskId: string) => {
+  const toggleCustomTask = async (task: CustomTask) => {
     if (!user) return;
-    const list = customTasks[selectedDate] || [];
-    const newCt = {
-      ...customTasks,
-      [selectedDate]: list.map(t => t.id === taskId ? { ...t, isDone: !t.isDone } : t)
-    };
-    setCustomTasks(newCt);
-    await saveCustomTasks(newCt);
+    
+    if (task.isShared) {
+      const ref = doc(db, "sharedTasks", task.id);
+      await updateDoc(ref, { 
+         isDone: !task.isDone,
+         checkedInByEmail: !task.isDone ? user.email : null,
+         completedAt: !task.isDone ? Date.now() : null
+      });
+    } else {
+      const list = customTasks[selectedDate] || [];
+      const newCt = {
+        ...customTasks,
+        [selectedDate]: list.map(t => t.id === task.id ? { ...t, isDone: !t.isDone, completedAt: !t.isDone ? Date.now() : null } : t)
+      };
+      setCustomTasks(newCt);
+      await saveCustomTasks(newCt);
+    }
   };
 
-  const deleteCustomTask = async (taskId: string) => {
+  const deleteCustomTask = async (task: CustomTask) => {
     if (!user) return;
-    const list = customTasks[selectedDate] || [];
-    const newCt = {
-      ...customTasks,
-      [selectedDate]: list.filter(t => t.id !== taskId)
-    };
-    setCustomTasks(newCt);
-    await saveCustomTasks(newCt);
+    
+    if (task.isShared) {
+      if (task.assignedBy === user.uid) {
+        await deleteDoc(doc(db, "sharedTasks", task.id));
+      }
+    } else {
+      const list = customTasks[selectedDate] || [];
+      const newCt = {
+        ...customTasks,
+        [selectedDate]: list.filter(t => t.id !== task.id)
+      };
+      setCustomTasks(newCt);
+      await saveCustomTasks(newCt);
+    }
+  };
+
+  const saveTaskAssignment = async (task: CustomTask) => {
+    if (!user) return;
+    const targetEmails = allUsers.filter(u => editAssignTo.includes(u.uid)).map(u => u.email);
+
+    if (task.isShared) {
+      const ref = doc(db, "sharedTasks", task.id);
+      await updateDoc(ref, {
+         assignedTo: editAssignTo,
+         assignedToEmails: targetEmails
+      });
+    } else {
+      if (editAssignTo.length > 0) {
+          await addDoc(collection(db, "sharedTasks"), {
+            t: task.t,
+            d: task.d,
+            isDone: task.isDone,
+            targetType: task.targetType,
+            targetBadge: task.targetBadge,
+            date: selectedDate,
+            assignedBy: user.uid,
+            assignedByEmail: user.email,
+            assignedTo: editAssignTo,
+            assignedToEmails: targetEmails,
+            checkedInByEmail: task.checkedInByEmail || null,
+            createdAt: task.createdAt || Date.now(),
+            completedAt: task.completedAt || null
+          });
+
+          const list = customTasks[selectedDate] || [];
+          const newCt = {
+            ...customTasks,
+            [selectedDate]: list.filter(t => t.id !== task.id)
+          };
+          setCustomTasks(newCt);
+          await saveCustomTasks(newCt);
+      }
+    }
+    setEditingAssignTask(null);
   };
 
   const cTasks = customTasks[selectedDate] || [];
+  const sTasks = sharedTasks.filter(t => t.date === selectedDate);
+  const mergedTasks = [...cTasks, ...sTasks];
 
-  const totalTasks = cTasks.length;
-  const tasksDoneCount = cTasks.filter(t => t.isDone).length;
+  const totalTasks = mergedTasks.length;
+  const tasksDoneCount = mergedTasks.filter(t => t.isDone).length;
   const pct = totalTasks === 0 ? 0 : Math.round((tasksDoneCount / totalTasks) * 100);
 
   const PCT_FORMATTER = new Intl.NumberFormat('en-US', { style: 'percent' });
@@ -149,6 +277,16 @@ export function DailyTasks() {
   const thirdMonthDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 2, 1);
 
   const formatMonthOnly = (d: Date) => d.toLocaleDateString('en-US', { month: 'long' });
+
+  const getCreationString = (ct: CustomTask) => {
+    let cre = ct.createdAt;
+    if (!cre && !ct.isShared && ct.id.length > 10) {
+      const c = parseInt(ct.id);
+      if (!isNaN(c)) cre = c;
+    }
+    if (!cre) return "";
+    return new Date(cre).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  };
 
   // Animation variants
   const dayVariants = {
@@ -336,35 +474,118 @@ export function DailyTasks() {
 
           <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column' }}>
             {/* Custom Tasks */}
-            {cTasks.map(ct => (
+            {mergedTasks.map(ct => (
               <motion.div variants={taskVariants} initial="hidden" animate="show" key={ct.id}>
                 <div
                   className="task-row"
-                  style={{ cursor: 'pointer', opacity: ct.isDone ? 0.6 : 1, transition: 'opacity 0.2s', position: 'relative' }}
+                  style={{ cursor: 'pointer', opacity: ct.isDone ? 0.6 : 1, transition: 'opacity 0.2s', position: 'relative', paddingRight: '40px' }}
                 >
                   <div
                     style={{ flexShrink: 0, marginTop: '2px', color: ct.isDone ? 'var(--accent)' : 'var(--border)' }}
-                    onClick={() => toggleCustomTask(ct.id)}
+                    onClick={() => toggleCustomTask(ct)}
                   >
                     {ct.isDone ? <CheckCircle2 size={20} /> : <Circle size={20} />}
                   </div>
                   <div
                     className="task-text"
-                    onClick={() => toggleCustomTask(ct.id)}
+                    onClick={() => toggleCustomTask(ct)}
                   >
                     <div className="task-name" style={{ textDecoration: ct.isDone ? 'line-through' : 'none' }}>
                       {ct.t}
                       <span className={`badge ${ct.targetBadge || 'b-gray'}`} style={{ marginLeft: '6px', fontSize: '10px' }}>{ct.targetType || 'Custom'}</span>
+                      {ct.isShared && (
+                        <span className="badge b-indigo" style={{ marginLeft: '6px', fontSize: '9px' }}>
+                          {ct.assignedBy === user?.uid 
+                            ? `Assigned to ${(ct.assignedToEmails || []).join(', ')}` 
+                            : `From ${ct.assignedByEmail}`}
+                        </span>
+                      )}
+                      {getCreationString(ct) && (
+                        <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 'normal', marginLeft: '8px' }}>
+                          Added {getCreationString(ct)}
+                        </span>
+                      )}
                     </div>
                     {ct.d && <div className="task-detail tiptap-content text-xs" dangerouslySetInnerHTML={{ __html: ct.d }} />}
+                    {ct.isDone && ct.checkedInByEmail && (
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px', fontStyle: 'italic' }}>
+                        ✓ Checked in by {ct.checkedInByEmail}
+                      </div>
+                    )}
+                    
+                    {/* INLINE ASSIGNMENT EDIT */}
+                    {editingAssignTask === ct.id && (
+                      <div style={{ marginTop: '10px', padding: '10px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Assign Task</div>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                          {allUsers.map(u => {
+                            const isSel = editAssignTo.includes(u.uid);
+                            return (
+                              <button
+                                type="button"
+                                key={u.uid}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isSel) setEditAssignTo(prev => prev.filter(id => id !== u.uid));
+                                  else setEditAssignTo(prev => [...prev, u.uid]);
+                                }}
+                                className="badge b-gray"
+                                style={{
+                                  opacity: isSel ? 1 : 0.6,
+                                  boxShadow: isSel ? '0 0 0 1px var(--text)' : 'none',
+                                  border: 'none',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {u.email}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button 
+                            type="button" 
+                            className="btn btn-sm" 
+                            onClick={(e) => { e.stopPropagation(); setEditingAssignTask(null); }}
+                          >Cancel</button>
+                          <button 
+                            type="button" 
+                            className="btn btn-sm btn-primary" 
+                            onClick={(e) => { e.stopPropagation(); saveTaskAssignment(ct); }}
+                          >Save</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <button
-                    className="btn btn-sm"
-                    onClick={() => deleteCustomTask(ct.id)}
-                    style={{ position: 'absolute', right: '0', top: '10px', background: 'var(--warn-light)', color: 'var(--warn)', borderColor: 'var(--warn-light)', padding: '4px 8px' }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+
+                  {(!ct.isShared || ct.assignedBy === user?.uid) && (
+                    <div style={{ position: 'absolute', right: '0', top: '10px', display: 'flex', gap: '4px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (editingAssignTask === ct.id) {
+                            setEditingAssignTask(null);
+                          } else {
+                            setEditingAssignTask(ct.id);
+                            setEditAssignTo(ct.assignedTo || []);
+                          }
+                        }}
+                        style={{ background: 'var(--surface2)', color: 'var(--text)', border: 'none', padding: '4px 8px' }}
+                      >
+                        <UserPlus size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={(e) => { e.stopPropagation(); setTaskToDelete(ct); }}
+                        style={{ background: 'var(--warn-light)', color: 'var(--warn)', borderColor: 'var(--warn-light)', padding: '4px 8px' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -400,6 +621,34 @@ export function DailyTasks() {
                     />
                   </div>
 
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px' }}>Assign To (Optional)</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {allUsers.map(u => {
+                        const isSel = assignTo.includes(u.uid);
+                        return (
+                          <button
+                            type="button"
+                            key={u.uid}
+                            onClick={() => {
+                              if (isSel) setAssignTo(prev => prev.filter(id => id !== u.uid));
+                              else setAssignTo(prev => [...prev, u.uid]);
+                            }}
+                            className="badge b-gray"
+                            style={{
+                              opacity: isSel ? 1 : 0.6,
+                              boxShadow: isSel ? '0 0 0 1px var(--text)' : 'none',
+                              border: 'none',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {u.email}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="form-group" style={{ marginBottom: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {TAG_OPTIONS.map(tag => (
                       <button
@@ -423,7 +672,7 @@ export function DailyTasks() {
                   </div>
 
                   <div className="form-group" style={{ marginBottom: '20px' }}>
-                    <StrategyEditor 
+                    <StrategyEditor
                       initialContent={newTaskDetail}
                       onChange={(val) => setNewTaskDetail(val)}
                       minHeight={150}
@@ -451,6 +700,24 @@ export function DailyTasks() {
             </AnimatePresence>
           </div>
         </motion.div>
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {taskToDelete && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }} onClick={() => setTaskToDelete(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: '400px', width: '100%', textAlign: 'center', padding: '30px', background: 'var(--bg)', borderRadius: '20px' }}>
+              <div style={{ width: '48px', height: '48px', background: 'var(--warn-light)', color: 'var(--warn)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <Trash2 size={24} />
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>Delete Task?</h3>
+              <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>Are you sure you want to delete "{taskToDelete.t}"? This action cannot be undone.</p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button className="btn" onClick={() => setTaskToDelete(null)} style={{ flex: 1 }}>Cancel</button>
+                <button className="btn btn-primary" onClick={() => { deleteCustomTask(taskToDelete); setTaskToDelete(null); }} style={{ flex: 1, background: 'var(--warn)', border: 'none', borderColor: 'var(--warn)' }}>Delete</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );

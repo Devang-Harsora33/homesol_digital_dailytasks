@@ -8,6 +8,7 @@ import { Calendar } from "@/components/panels/Calendar";
 import { Messages } from "@/components/panels/Messages";
 import { Contacts } from "@/components/panels/Contacts";
 import { Report } from "@/components/panels/Report";
+import { Stats } from "@/components/panels/Stats";
 import { Mistakes } from "@/components/panels/Mistakes";
 import { Agent } from "@/components/panels/Agent";
 
@@ -20,6 +21,7 @@ export default function Dashboard() {
       case "calendar": return <Calendar />;
       case "messages": return <Messages />;
       case "contacts": return <Contacts />;
+      case "stats": return <Stats />;
       case "report": return <Report />;
       case "mistakes": return <Mistakes />;
       case "agent": return <Agent />;

@@ -30,6 +30,9 @@ export function Sidebar({ activePanel, setActivePanel }: SidebarProps) {
       </div>
 
       <div className="nav-section">Track</div>
+      <div className={`nav-item ${activePanel === 'stats' ? 'active' : ''}`} onClick={() => setActivePanel('stats')}>
+        <span className="nav-icon">📈</span> Analytics
+      </div>
       <div className={`nav-item ${activePanel === 'report' ? 'active' : ''}`} onClick={() => setActivePanel('report')}>
         <span className="nav-icon">📊</span> Daily Report
       </div>
@@ -57,9 +60,9 @@ export function Sidebar({ activePanel, setActivePanel }: SidebarProps) {
         <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px', wordBreak: 'break-all' }}>
           {user?.email}
         </div>
-        <button 
-          className="btn btn-sm" 
-          onClick={() => auth.signOut()} 
+        <button
+          className="btn btn-sm"
+          onClick={() => auth.signOut()}
           style={{ width: '100%', borderColor: 'var(--warn)', color: 'var(--warn)' }}
         >
           Sign Out

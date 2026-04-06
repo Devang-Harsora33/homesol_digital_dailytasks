@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #fdfafa; /* Ultra-clean warm off-white */
+  --bg: #fdfafa;
+  /* Ultra-clean warm off-white */
   --surface: #ffffff;
   --surface2: #f4f2ec;
   --border: #e6e2d6;
-  --text: #02001d; /* Deep Navy from logo */
+  --text: #02001d;
+  /* Deep Navy from logo */
   --muted: #6b6a75;
-  
+
   /* Primary Brand Colors */
   --gold: #d6bc75;
   --gold-hover: #c4a961;
@@ -15,9 +17,9 @@
   --navy-hover: #100f33;
 
   /* Legacy Accent Mappings */
-  --accent: #d6bc75; 
-  --accent2: #02001d; 
-  --accent-light: #fbf5e6; 
+  --accent: #d6bc75;
+  --accent2: #02001d;
+  --accent-light: #fbf5e6;
 
   /* Feedback Colors tuned to feel premium */
   --warn: #c94f31;
@@ -26,9 +28,20 @@
   --blue-light: #e6effa;
   --amber: #bd731d;
   --amber-light: #fdf2e3;
+  --yellow: #ca8a04;
+  --yellow-light: #fef9c3;
   --purple: #5c3886;
   --purple-light: #f4ebfb;
-
+  --pink: #c23a6b;
+  --pink-light: #fdeaf1;
+  --orange: #c46a1a;
+  --orange-light: #fdf1e4;
+  --lime: #6f8f2f;
+  --lime-light: #f3f8e7;
+  --indigo: #3f4aa8;
+  --indigo-light: #eceffd;
+  --cyan: #2c8c8c;
+  --cyan-light: #e8f7f7;
   --radius: 12px;
   --radius-sm: 8px;
 }
@@ -255,6 +268,11 @@ body {
   color: var(--amber);
 }
 
+.b-yellow {
+  background: var(--yellow-light);
+  color: var(--yellow);
+}
+
 .b-red {
   background: var(--warn-light);
   color: var(--warn);
@@ -268,6 +286,31 @@ body {
 .b-gray {
   background: var(--surface2);
   color: var(--muted);
+}
+
+.b-pink {
+  background: var(--pink-light);
+  color: var(--pink);
+}
+
+.b-orange {
+  background: var(--orange-light);
+  color: var(--orange);
+}
+
+.b-lime {
+  background: var(--lime-light);
+  color: var(--lime);
+}
+
+.b-indigo {
+  background: var(--indigo-light);
+  color: var(--indigo);
+}
+
+.b-cyan {
+  background: var(--cyan-light);
+  color: var(--cyan);
 }
 
 /* ── BUTTONS ── */

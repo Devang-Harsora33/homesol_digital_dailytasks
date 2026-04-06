@@ -8,7 +8,7 @@ PROPERTY DETAILS:
 - 3 Wooden Cottages (couples/small groups, from ₹8,000/night)
 - USP: Mountain + valley views, huge private pool, 24/7 loud music allowed, NO curfew, NO restrictions, pet friendly, no neighbors
 - No in-house kitchen — 2 restaurant menus for order-in
-- Instagram: @mount_view_grand_villa (200 followers, 34 posts as of March 2026)
+- Instagram: @homesolindia (200 followers, 34 posts as of March 2026)
 - Booking: Direct DMs, WhatsApp, JustDial, MakeMyTrip, Agoda
 
 TARGET SEGMENTS (priority order):

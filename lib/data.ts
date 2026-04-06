@@ -64,7 +64,7 @@ export const CAL_POSTS = [
   },
   {
     day: 16, type: "collab", title: "Influencer Reel live", time: "Posted by influencer",
-    caption: "[Influencer writes their own caption. Brief them: mention Palghar, 1.5hr from Mumbai, tag @mount_view_grand_villa, use #MountViewVilla]",
+    caption: "[Influencer writes their own caption. Brief them: mention Palghar, 1.5hr from Mumbai, tag @homesolindia, use #MountViewVilla]",
     hook: "Influencer shows authentic experience — pool, view, cottage, music. Their audience = your new audience."
   },
   { day: 18, type: "story", title: "This week availability", time: "7PM", hook: "Simple: 'This weekend has 1 slot left — DM now to book!' with countdown sticker." },
@@ -166,7 +166,7 @@ export const CAPTIONS = {
 };
 
 export const MISTAKES = [
-  { q: "Influencer posted but didn't tag us", sev: "high", fix: "Before every collab, send a WhatsApp message 1 day before posting: 'Hey! Reminder to tag @mount_view_grand_villa in the caption and use #MountViewVilla. Also add our location tag to the Reel.' For future collabs: put this in writing before they arrive — make it a formal collab brief." },
+  { q: "Influencer posted but didn't tag us", sev: "high", fix: "Before every collab, send a WhatsApp message 1 day before posting: 'Hey! Reminder to tag @homesolindia in the caption and use #MountViewVilla. Also add our location tag to the Reel.' For future collabs: put this in writing before they arrive — make it a formal collab brief." },
   { q: "No replies to LinkedIn messages", sev: "high", fix: "Your opener is wrong. Stop leading with features. Lead with a question about them: 'Hi [Name], are you planning any Q2 team offsite near Mumbai? We have a private villa for 20-40 people with pool and mountain views — completely different from hotel stays.' Questions get replies. Statements get ignored." },
   { q: "Instagram Reel gets zero reach", sev: "high", fix: "Do all 5: (1) Post between 7-9 PM. (2) Use trending audio from Instagram's music list. (3) First 3 seconds must show the mountain view or pool — hook immediately. (4) Use only 5-8 hashtags — don't use 30. (5) Reply to every comment within the first hour. The algorithm rewards fast engagement." },
   { q: "WhatsApp inquiry goes cold — no booking", sev: "high", fix: "Send this exact message on Day 2 after no reply: 'Hey [Name]! Just wanted to check — did you get a chance to look at the details? Happy to jump on a 5-min call or answer anything by message. Also, this weekend still has availability 🙂 Don't want you to miss out!' If still no reply on Day 4: close the loop — 'Hey! Last check — let me know if dates change, we'd love to host you.'" },
