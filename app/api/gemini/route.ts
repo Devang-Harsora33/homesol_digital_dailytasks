@@ -30,7 +30,7 @@ Always be practical and specific. No generic advice. Keep responses clear and we
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt } = await req.json();
+    const { prompt, model: requestedModel } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "No prompt provided" }, { status: 400 });
@@ -41,8 +41,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Gemini API key is not configured on the server." }, { status: 500 });
     }
 
+    const modelMap: Record<string, string> = {
+      "gemini-3.1-pro": "gemini-1.5-pro-latest",
+      "gemini-3.0-pro": "gemini-1.5-pro-latest",
+      "gemini-2.5-pro": "gemini-1.5-pro-latest",
+      "gemini-2.5-flash": "gemini-1.5-flash-latest",
+      "gemini-1.5-pro-latest": "gemini-1.5-pro-latest",
+      "gemini-1.5-flash-latest": "gemini-1.5-flash-latest",
+      "gemini-1.0-pro": "gemini-1.0-pro",
+      "gemini-pro": "gemini-pro"
+    };
+
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const modelToUse = modelMap[requestedModel] || "gemini-1.5-flash-latest";
+    const model = genAI.getGenerativeModel({ model: modelToUse });
 
     const fullPrompt = `${SYS}\n\n${prompt}`;
 

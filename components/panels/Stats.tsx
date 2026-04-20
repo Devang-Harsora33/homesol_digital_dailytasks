@@ -22,6 +22,7 @@ type CustomTask = {
   createdAt?: number;
   completedAt?: number | null;
   date?: string;
+  companyName?: string | null;
 };
 
 const TAG_OPTIONS = [
@@ -43,6 +44,8 @@ export function Stats() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<CustomTask[]>([]);
   const [activeTag, setActiveTag] = useState("All Tags");
+  const [activeCompany, setActiveCompany] = useState("All Companies");
+  const [companies, setCompanies] = useState<{id: string, name: string}[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -76,7 +79,18 @@ export function Stats() {
       });
     });
 
-    return () => unsubPersonal();
+    // Fetch companies
+    const unsubCompanies = onSnapshot(collection(db, "companies"), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push({ id: d.id, name: d.data().name }));
+      list.sort((a,b) => a.name.localeCompare(b.name));
+      setCompanies(list);
+    });
+
+    return () => {
+      unsubPersonal();
+      unsubCompanies();
+    };
   }, [user]);
 
   const downloadPDF = () => {
@@ -92,9 +106,13 @@ export function Stats() {
   };
 
   // Compute metrics
-  const displayTasks = activeTag === "All Tags" 
+  let displayTasks = activeTag === "All Tags" 
     ? tasks 
     : tasks.filter(t => (t.targetType || "Custom") === activeTag);
+
+  if (activeCompany !== "All Companies") {
+    displayTasks = displayTasks.filter(t => t.companyName === activeCompany);
+  }
 
   const total = displayTasks.length;
   const done = displayTasks.filter(t => t.isDone).length;
@@ -121,7 +139,9 @@ export function Stats() {
   });
 
   const avgMs = validTimeTasks === 0 ? 0 : totalTimeMs / validTimeTasks;
-  const avgHours = (avgMs / (1000 * 60 * 60)).toFixed(1);
+  const totalHours = Math.floor(avgMs / (1000 * 60 * 60));
+  const d = Math.floor(totalHours / 24);
+  const h = totalHours % 24;
 
   // Group by Tag for chart
   const tagData = TAG_OPTIONS.filter(t => t.label !== "All Tags").map(tag => {
@@ -208,6 +228,44 @@ export function Stats() {
         ))}
       </div>
 
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '24px' }}>
+        <button
+          onClick={() => setActiveCompany("All Companies")}
+          className={`badge ${activeCompany === "All Companies" ? "b-navy" : "b-gray"}`}
+          style={{ 
+            padding: '8px 16px', 
+            fontSize: '13px',
+            opacity: activeCompany === "All Companies" ? 1 : 0.5,
+            cursor: 'pointer',
+            border: activeCompany === "All Companies" ? '1px solid currentColor' : '1px solid transparent',
+            boxShadow: activeCompany === "All Companies" ? '0 4px 10px rgba(0,0,0,0.05)' : 'none',
+            transition: 'all 0.2s',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          All Profiles
+        </button>
+        {companies.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setActiveCompany(c.name)}
+            className={`badge ${activeCompany === c.name ? "b-indigo" : "b-gray"}`}
+            style={{ 
+              padding: '8px 16px', 
+              fontSize: '13px',
+              opacity: activeCompany === c.name ? 1 : 0.5,
+              cursor: 'pointer',
+              border: activeCompany === c.name ? '1px solid currentColor' : '1px solid transparent',
+              boxShadow: activeCompany === c.name ? '0 4px 10px rgba(0,0,0,0.05)' : 'none',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            🏢 {c.name}
+          </button>
+        ))}
+      </div>
+
       {/* The Printable Area */}
       <div ref={reportRef} style={{ background: 'var(--bg)', padding: '2px', borderRadius: '16px' }}>
         {/* Metric Cards */}
@@ -232,8 +290,13 @@ export function Stats() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted)', marginBottom: '10px', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase' }}>
               <Clock size={16} color="var(--amber)" /> Avg. Completion Speed
             </div>
-            <div style={{ fontSize: '36px', fontWeight: 800 }}>
-              {validTimeTasks === 0 ? '--' : avgHours}<span style={{ fontSize: '16px', color: 'var(--muted)', marginLeft: '4px' }}>hrs</span>
+            <div style={{ fontSize: '36px', fontWeight: 800, display: 'flex', alignItems: 'baseline' }}>
+              {validTimeTasks === 0 ? '--' : (
+                <>
+                  {d > 0 && <>{d}<span style={{ fontSize: '16px', color: 'var(--muted)', marginLeft: '4px', marginRight: '12px' }}>{d === 1 ? 'day' : 'days'}</span></>}
+                  {h >= 0 && <>{h}<span style={{ fontSize: '16px', color: 'var(--muted)', marginLeft: '4px' }}>{h === 1 ? 'hr' : 'hrs'}</span></>}
+                </>
+              )}
             </div>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '8px' }}>Time from creation to checking in.</div>
           </motion.div>

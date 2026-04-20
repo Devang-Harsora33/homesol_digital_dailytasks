@@ -6,8 +6,9 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, addDoc, deleteDoc, getDocs, or } from "firebase/firestore";
 import { useAuth } from "@/components/AuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, Circle, Plus, Trash2, X, Calendar as CalendarIcon, ChevronDown, UserPlus } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, X, Calendar as CalendarIcon, ChevronDown, UserPlus, Edit2 } from "lucide-react";
 import { StrategyEditor } from "./StrategyEditor";
+import { CustomDatePicker } from "@/components/CustomDatePicker";
 
 type CustomTask = {
   id: string;
@@ -25,6 +26,8 @@ type CustomTask = {
   date?: string;
   createdAt?: number;
   completedAt?: number | null;
+  targetCompletionDate?: string;
+  companyName?: string | null;
 };
 
 const TAG_OPTIONS = [
@@ -52,12 +55,19 @@ export function DailyTasks() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDetail, setNewTaskDetail] = useState("");
   const [newTaskTag, setNewTaskTag] = useState(TAG_OPTIONS[0]);
+  const [newTaskTargetDate, setNewTaskTargetDate] = useState("");
   const [sharedTasks, setSharedTasks] = useState<CustomTask[]>([]);
   const [allUsers, setAllUsers] = useState<{uid: string, email: string}[]>([]);
   const [assignTo, setAssignTo] = useState<string[]>([]);
   const [editingAssignTask, setEditingAssignTask] = useState<string | null>(null);
   const [editAssignTo, setEditAssignTo] = useState<string[]>([]);
   const [taskToDelete, setTaskToDelete] = useState<CustomTask | null>(null);
+  const [editingTask, setEditingTask] = useState<CustomTask | null>(null);
+
+  const [companies, setCompanies] = useState<{id: string, name: string}[]>([]);
+  const [newTaskCompanyName, setNewTaskCompanyName] = useState("");
+  const [isAddingCompany, setIsAddingCompany] = useState(false);
+  const [newCompanyInput, setNewCompanyInput] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -99,11 +109,33 @@ export function DailyTasks() {
       setSharedTasks(list);
     });
 
+    // Companies
+    const unsubCompanies = onSnapshot(collection(db, "companies"), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push({ id: d.id, name: d.data().name }));
+      list.sort((a,b) => a.name.localeCompare(b.name));
+      setCompanies(list);
+    });
+
     return () => {
       unsubPersonal();
       unsubShared();
+      unsubCompanies();
     };
   }, [user]);
+
+  const handleAddCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCompanyInput.trim()) return;
+    try {
+      await addDoc(collection(db, "companies"), { name: newCompanyInput.trim(), createdAt: Date.now() });
+      setNewTaskCompanyName(newCompanyInput.trim());
+      setIsAddingCompany(false);
+      setNewCompanyInput("");
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const saveCustomTasks = async (newCt: any) => {
     try {
@@ -114,51 +146,131 @@ export function DailyTasks() {
     }
   };
 
+  const resetForm = () => {
+    setNewTaskTitle("");
+    setNewTaskDetail("");
+    setNewTaskTag(TAG_OPTIONS[0]);
+    setNewTaskTargetDate("");
+    setNewTaskCompanyName("");
+    setAssignTo([]);
+    setIsAdding(false);
+    setEditingTask(null);
+  };
+
+  const handleEditClick = (task: CustomTask) => {
+    setEditingTask(task);
+    setNewTaskTitle(task.t);
+    setNewTaskDetail(task.d || "");
+    const tag = TAG_OPTIONS.find(t => t.label === task.targetType) || TAG_OPTIONS[0];
+    setNewTaskTag(tag);
+    setNewTaskTargetDate(task.targetCompletionDate || "");
+    setNewTaskCompanyName(task.companyName || "");
+    setAssignTo(task.assignedTo || []);
+    setIsAdding(true);
+  };
+
   const addCustomTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newTaskTitle.trim()) return;
 
     const clearHtml = newTaskDetail === '<p></p>' || newTaskDetail === '<p><br></p>' ? '' : newTaskDetail;
+    const targetEmails = allUsers.filter(u => assignTo.includes(u.uid)).map(u => u.email);
 
-    if (assignTo.length > 0) {
-      const targetEmails = allUsers.filter(u => assignTo.includes(u.uid)).map(u => u.email);
-      await addDoc(collection(db, "sharedTasks"), {
-        t: newTaskTitle,
-        d: clearHtml,
-        isDone: false,
-        targetType: newTaskTag.label,
-        targetBadge: newTaskTag.badge,
-        date: selectedDate,
-        assignedBy: user.uid,
-        assignedByEmail: user.email,
-        assignedTo: assignTo,
-        assignedToEmails: targetEmails,
-        checkedInByEmail: null,
-        createdAt: Date.now(),
-        completedAt: null
-      });
+    if (editingTask) {
+      if (editingTask.isShared) {
+        const ref = doc(db, "sharedTasks", editingTask.id);
+        await updateDoc(ref, {
+          t: newTaskTitle,
+          d: clearHtml,
+          targetType: newTaskTag.label,
+          targetBadge: newTaskTag.badge,
+          targetCompletionDate: newTaskTargetDate || null,
+          companyName: newTaskCompanyName || null,
+          assignedTo: assignTo,
+          assignedToEmails: targetEmails
+        });
+      } else {
+        if (assignTo.length > 0) {
+           await addDoc(collection(db, "sharedTasks"), {
+             t: newTaskTitle,
+             d: clearHtml,
+             isDone: editingTask.isDone,
+             targetType: newTaskTag.label,
+             targetBadge: newTaskTag.badge,
+             date: selectedDate,
+             assignedBy: user.uid,
+             assignedByEmail: user.email,
+             assignedTo: assignTo,
+             assignedToEmails: targetEmails,
+             checkedInByEmail: editingTask.checkedInByEmail || null,
+             createdAt: editingTask.createdAt || Date.now(),
+             completedAt: editingTask.completedAt || null,
+             targetCompletionDate: newTaskTargetDate || null,
+             companyName: newTaskCompanyName || null
+           });
+           
+           const list = customTasks[selectedDate] || [];
+           const newCt = { ...customTasks, [selectedDate]: list.filter(t => t.id !== editingTask.id) };
+           setCustomTasks(newCt);
+           await saveCustomTasks(newCt);
+        } else {
+           const list = customTasks[selectedDate] || [];
+           const newCt = {
+             ...customTasks,
+             [selectedDate]: list.map(t => t.id === editingTask.id ? { 
+                ...t, 
+                t: newTaskTitle,
+                d: clearHtml,
+                targetType: newTaskTag.label,
+                targetBadge: newTaskTag.badge,
+                targetCompletionDate: newTaskTargetDate || undefined,
+                companyName: newTaskCompanyName || null
+             } : t)
+           };
+           setCustomTasks(newCt);
+           await saveCustomTasks(newCt);
+        }
+      }
     } else {
-      const newTask: CustomTask = {
-        id: Date.now().toString(),
-        t: newTaskTitle,
-        d: clearHtml,
-        isDone: false,
-        targetType: newTaskTag.label,
-        targetBadge: newTaskTag.badge,
-        createdAt: Date.now(),
-        completedAt: null
-      };
-      const list = customTasks[selectedDate] || [];
-      const newCt = { ...customTasks, [selectedDate]: [...list, newTask] };
-      setCustomTasks(newCt);
-      await saveCustomTasks(newCt);
+      if (assignTo.length > 0) {
+        await addDoc(collection(db, "sharedTasks"), {
+          t: newTaskTitle,
+          d: clearHtml,
+          isDone: false,
+          targetType: newTaskTag.label,
+          targetBadge: newTaskTag.badge,
+          date: selectedDate,
+          assignedBy: user.uid,
+          assignedByEmail: user.email,
+          assignedTo: assignTo,
+          assignedToEmails: targetEmails,
+          checkedInByEmail: null,
+          createdAt: Date.now(),
+          completedAt: null,
+          targetCompletionDate: newTaskTargetDate || null,
+          companyName: newTaskCompanyName || null
+        });
+      } else {
+        const newTask: CustomTask = {
+          id: Date.now().toString(),
+          t: newTaskTitle,
+          d: clearHtml,
+          isDone: false,
+          targetType: newTaskTag.label,
+          targetBadge: newTaskTag.badge,
+          createdAt: Date.now(),
+          completedAt: null,
+          targetCompletionDate: newTaskTargetDate || undefined,
+          companyName: newTaskCompanyName || null
+        };
+        const list = customTasks[selectedDate] || [];
+        const newCt = { ...customTasks, [selectedDate]: [...list, newTask] };
+        setCustomTasks(newCt);
+        await saveCustomTasks(newCt);
+      }
     }
 
-    setNewTaskTitle("");
-    setNewTaskDetail("");
-    setNewTaskTag(TAG_OPTIONS[0]);
-    setAssignTo([]);
-    setIsAdding(false);
+    resetForm();
   };
 
   const toggleCustomTask = async (task: CustomTask) => {
@@ -225,7 +337,9 @@ export function DailyTasks() {
             assignedToEmails: targetEmails,
             checkedInByEmail: task.checkedInByEmail || null,
             createdAt: task.createdAt || Date.now(),
-            completedAt: task.completedAt || null
+            completedAt: task.completedAt || null,
+            targetCompletionDate: task.targetCompletionDate || null,
+            companyName: task.companyName || null
           });
 
           const list = customTasks[selectedDate] || [];
@@ -309,55 +423,16 @@ export function DailyTasks() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
 
           {/* PREMIUM DATE PICKER */}
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-            <div
-              onClick={() => {
-                if (dateInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
-                  try {
-                    dateInputRef.current.showPicker();
-                  } catch (e) { console.error(e) }
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '10px 18px',
-                background: 'var(--surface)',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-                transition: 'all 0.2s ease',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
-            >
-              <CalendarIcon size={18} color="var(--accent)" />
-              <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', minWidth: '110px' }}>
-                {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-              </span>
-              <ChevronDown size={14} color="var(--muted)" style={{ marginLeft: '4px' }} />
-            </div>
-
-            {/* Invisible native overlay */}
-            <input
-              type="date"
-              ref={dateInputRef}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minWidth: '180px' }}>
+            <CustomDatePicker
               value={selectedDate}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setSelectedDate(e.target.value);
-                  setWeekAnchorDate(e.target.value);
+              onChange={(val) => {
+                if (val) {
+                  setSelectedDate(val);
+                  setWeekAnchorDate(val);
                 }
               }}
-              style={{
-                position: 'absolute',
-                width: '0',
-                height: '0',
-                opacity: 0,
-                pointerEvents: 'none',
-              }}
+              placeholder="Select date"
             />
           </div>
 
@@ -500,6 +575,11 @@ export function DailyTasks() {
                             : `From ${ct.assignedByEmail}`}
                         </span>
                       )}
+                      {ct.companyName && (
+                        <span className="badge b-gray" style={{ marginLeft: '6px', fontSize: '9px', fontWeight: 600 }}>
+                          🏢 {ct.companyName}
+                        </span>
+                      )}
                       {getCreationString(ct) && (
                         <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 'normal', marginLeft: '8px' }}>
                           Added {getCreationString(ct)}
@@ -507,6 +587,11 @@ export function DailyTasks() {
                       )}
                     </div>
                     {ct.d && <div className="task-detail tiptap-content text-xs" dangerouslySetInnerHTML={{ __html: ct.d }} />}
+                    {ct.targetCompletionDate && (
+                      <div style={{ fontSize: '11px', color: 'var(--accent)', marginTop: '4px', fontWeight: 600 }}>
+                        Target Date: {new Date(ct.targetCompletionDate).toLocaleDateString()}
+                      </div>
+                    )}
                     {ct.isDone && ct.checkedInByEmail && (
                       <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px', fontStyle: 'italic' }}>
                         ✓ Checked in by {ct.checkedInByEmail}
@@ -579,6 +664,17 @@ export function DailyTasks() {
                       <button
                         type="button"
                         className="btn btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditClick(ct);
+                        }}
+                        style={{ background: 'var(--surface2)', color: 'var(--text)', border: 'none', padding: '4px 8px' }}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
                         onClick={(e) => { e.stopPropagation(); setTaskToDelete(ct); }}
                         style={{ background: 'var(--warn-light)', color: 'var(--warn)', borderColor: 'var(--warn-light)', padding: '4px 8px' }}
                       >
@@ -603,9 +699,9 @@ export function DailyTasks() {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      <Plus size={16} /> Prioritize Tasks for {new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      <Plus size={16} /> {editingTask ? "Edit Task" : `Prioritize Tasks for ${new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                     </div>
-                    <button type="button" onClick={() => setIsAdding(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
+                    <button type="button" onClick={resetForm} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
                   </div>
 
                   <div className="form-group">
@@ -649,6 +745,30 @@ export function DailyTasks() {
                     </div>
                   </div>
 
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                      Company / Profile (Optional)
+                      <button type="button" onClick={() => setIsAddingCompany(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
+                        <Plus size={12} /> Add Profile
+                      </button>
+                    </div>
+                    <select className="form-input" style={{ fontSize: '14px', padding: '10px 14px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', width: '100%', borderRadius: '12px' }} value={newTaskCompanyName} onChange={e => setNewTaskCompanyName(e.target.value)}>
+                      <option value="">Select a company...</option>
+                      {companies.map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px' }}>Targeted Completion Date (Optional)</div>
+                    <CustomDatePicker
+                      value={newTaskTargetDate}
+                      onChange={setNewTaskTargetDate}
+                      placeholder="Pick a target date..."
+                    />
+                  </div>
+
                   <div className="form-group" style={{ marginBottom: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {TAG_OPTIONS.map(tag => (
                       <button
@@ -680,9 +800,9 @@ export function DailyTasks() {
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                    <button type="button" onClick={() => setIsAdding(false)} className="btn">Cancel</button>
+                    <button type="button" onClick={resetForm} className="btn">Cancel</button>
                     <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      Save Task <CheckCircle2 size={14} />
+                      {editingTask ? "Update Task" : "Save Task"} <CheckCircle2 size={14} />
                     </button>
                   </div>
                 </motion.form>
@@ -716,6 +836,41 @@ export function DailyTasks() {
                 <button className="btn btn-primary" onClick={() => { deleteCustomTask(taskToDelete); setTaskToDelete(null); }} style={{ flex: 1, background: 'var(--warn)', border: 'none', borderColor: 'var(--warn)' }}>Delete</button>
               </div>
             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAddingCompany && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }} onClick={() => setIsAddingCompany(false)}>
+            <motion.form 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              onClick={e => e.stopPropagation()} 
+              onSubmit={handleAddCompany}
+              className="card" 
+              style={{ maxWidth: '400px', width: '100%', padding: '30px', background: 'var(--bg)', borderRadius: '20px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Add Company Profile</h3>
+                <button type="button" onClick={() => setIsAddingCompany(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
+              </div>
+              <input 
+                autoFocus
+                type="text" 
+                className="form-input" 
+                placeholder="Company Name" 
+                value={newCompanyInput}
+                onChange={e => setNewCompanyInput(e.target.value)}
+                required
+                style={{ width: '100%', marginBottom: '20px', padding: '10px 14px', border: '1px solid var(--border)' }}
+              />
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" onClick={() => setIsAddingCompany(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Profile</button>
+              </div>
+            </motion.form>
           </div>
         )}
       </AnimatePresence>

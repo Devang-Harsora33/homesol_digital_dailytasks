@@ -31,29 +31,32 @@ interface StrategyEditorProps {
   minHeight?: string | number;
 }
 
+const editorExtensions = [
+  StarterKit.configure({
+    heading: { levels: [1, 2, 3] },
+  }),
+  Underline,
+  Highlight.configure({ multicolor: true }),
+  TextAlign.configure({ types: ['heading', 'paragraph'] }),
+  Link.configure({ openOnClick: false }),
+  Color,
+  TextStyle,
+  TaskList,
+  TaskItem.configure({ nested: true }),
+  Placeholder.configure({
+    placeholder: "Type your overarching strategy notes here... Use the toolbar above or the AI assistant.",
+  }),
+];
+
 export function StrategyEditor({ initialContent, onChange, onBlur, minHeight }: StrategyEditorProps) {
   const [isAIPromptOpen, setIsAIPromptOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
+  const [aiModel, setAiModel] = useState("gemini-1.5-flash-latest");
   const [isGenerating, setIsGenerating] = useState(false);
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-      }),
-      Underline,
-      Highlight.configure({ multicolor: true }),
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Link.configure({ openOnClick: false }),
-      Color,
-      TextStyle,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Placeholder.configure({
-        placeholder: "Type your overarching strategy notes here... Use the toolbar above or the AI assistant.",
-      }),
-    ],
+    extensions: editorExtensions,
     content: initialContent,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
@@ -87,7 +90,7 @@ export function StrategyEditor({ initialContent, onChange, onBlur, minHeight }: 
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptContext })
+        body: JSON.stringify({ prompt: promptContext, model: aiModel })
       });
 
       const data = await res.json();
@@ -117,7 +120,7 @@ export function StrategyEditor({ initialContent, onChange, onBlur, minHeight }: 
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptContext })
+        body: JSON.stringify({ prompt: promptContext, model: aiModel })
       });
 
       const data = await res.json();
@@ -269,7 +272,23 @@ export function StrategyEditor({ initialContent, onChange, onBlur, minHeight }: 
               </button>
             </div>
             
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <select
+                className="form-input"
+                style={{ fontSize: '14px', padding: '10px', borderColor: 'var(--border)', minWidth: '150px', borderRadius: '8px' }}
+                value={aiModel}
+                onChange={e => setAiModel(e.target.value)}
+                disabled={isGenerating}
+              >
+                <option value="gemini-3.1-pro">Gemini 3.1 Pro (Advanced)</option>
+                <option value="gemini-3.0-pro">Gemini 3.0 Pro</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-1.5-pro-latest">Gemini 1.5 Pro (Latest)</option>
+                <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Latest)</option>
+                <option value="gemini-1.0-pro">Gemini 1.0 Pro</option>
+                <option value="gemini-pro">Gemini Pro</option>
+              </select>
               <input 
                 type="text" 
                 autoFocus
