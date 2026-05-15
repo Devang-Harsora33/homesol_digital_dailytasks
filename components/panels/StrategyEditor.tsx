@@ -35,10 +35,8 @@ const editorExtensions = [
   StarterKit.configure({
     heading: { levels: [1, 2, 3] },
   }),
-  Underline,
   Highlight.configure({ multicolor: true }),
   TextAlign.configure({ types: ['heading', 'paragraph'] }),
-  Link.configure({ openOnClick: false }),
   Color,
   TextStyle,
   TaskList,
@@ -51,7 +49,7 @@ const editorExtensions = [
 export function StrategyEditor({ initialContent, onChange, onBlur, minHeight }: StrategyEditorProps) {
   const [isAIPromptOpen, setIsAIPromptOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiModel, setAiModel] = useState("gemini-1.5-flash-latest");
+  const [aiModel, setAiModel] = useState("gemini-2.5-flash");
   const [isGenerating, setIsGenerating] = useState(false);
 
   const editor = useEditor({
@@ -280,14 +278,11 @@ export function StrategyEditor({ initialContent, onChange, onBlur, minHeight }: 
                 onChange={e => setAiModel(e.target.value)}
                 disabled={isGenerating}
               >
-                <option value="gemini-3.1-pro">Gemini 3.1 Pro (Advanced)</option>
+                <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
                 <option value="gemini-3.0-pro">Gemini 3.0 Pro</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-1.5-pro-latest">Gemini 1.5 Pro (Latest)</option>
-                <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Latest)</option>
-                <option value="gemini-1.0-pro">Gemini 1.0 Pro</option>
-                <option value="gemini-pro">Gemini Pro</option>
+                <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
               </select>
               <input 
                 type="text" 

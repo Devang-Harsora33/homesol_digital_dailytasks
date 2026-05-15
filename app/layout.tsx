@@ -16,6 +16,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://erp.homesolindia.com'),
   title: "Homesol Digital - Daily Digital Tasks",
   description: "Manage your daily tasks, content calendar, and digital strategy with Homesol Digital.",
   icons: {

@@ -42,7 +42,7 @@ export function Sidebar({ activePanel, setActivePanel }: SidebarProps) {
 
       <div className="nav-section">AI</div>
       <div className={`nav-item ${activePanel === 'agent' ? 'active' : ''}`} onClick={() => setActivePanel('agent')}>
-        <span className="nav-icon">🤖</span> AI Agent
+        <span className="nav-icon">✨</span> Ask AI
       </div>
 
       <div style={{ marginTop: '20px', padding: '12px', background: 'var(--accent-light)', borderRadius: 'var(--radius-sm)' }}>

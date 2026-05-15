@@ -38,32 +38,65 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "Gemini API key is not configured on the server." }, { status: 500 });
+      return NextResponse.json({ error: "Gemini API key missing" }, { status: 500 });
     }
 
-    const modelMap: Record<string, string> = {
-      "gemini-3.1-pro": "gemini-1.5-pro-latest",
-      "gemini-3.0-pro": "gemini-1.5-pro-latest",
-      "gemini-2.5-pro": "gemini-1.5-pro-latest",
-      "gemini-2.5-flash": "gemini-1.5-flash-latest",
-      "gemini-1.5-pro-latest": "gemini-1.5-pro-latest",
-      "gemini-1.5-flash-latest": "gemini-1.5-flash-latest",
-      "gemini-1.0-pro": "gemini-1.0-pro",
-      "gemini-pro": "gemini-pro"
+    // Sanitize input: "Gemini 2.5 Flash" -> "gemini-2.5-flash"
+    const sanitizedRequestedModel = (requestedModel || "").toLowerCase().replace(/\s+/g, '-');
+
+    /**
+     * Stable Model Map (Following provided Fix)
+     * Using only stable, production release names and bypassing -exp endpoints.
+     */
+    const modelMap: Record<string, string[]> = {
+      "gemini-3.1-pro": ["gemini-3.1-pro", "gemini-2.5-pro", "gemini-1.5-pro"],
+      "gemini-3.0-pro": ["gemini-3.0-pro", "gemini-2.5-pro", "gemini-1.5-pro"],
+      "gemini-2.5-pro": ["gemini-2.5-pro", "gemini-1.5-pro"],
+      "gemini-2.5-flash": ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"],
+      "gemini-2.0-flash": ["gemini-2.0-flash", "gemini-1.5-flash"],
+      "gemini-2.0-pro": ["gemini-2.0-pro", "gemini-1.5-pro"],
+      "gemini-1.5-pro": ["gemini-1.5-pro"],
+      "gemini-1.5-flash": ["gemini-1.5-flash"],
     };
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelToUse = modelMap[requestedModel] || "gemini-1.5-flash-latest";
-    const model = genAI.getGenerativeModel({ model: modelToUse });
+    const fallbacks = modelMap[sanitizedRequestedModel] || ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    
+    let lastError: any = null;
 
-    const fullPrompt = `${SYS}\n\n${prompt}`;
+    for (const modelName of fallbacks) {
+      try {
+        console.log(`Attempting stable model: ${modelName}`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        
+        const result = await model.generateContent(`${SYS}\n\n${prompt}`);
+        const text = result.response.text();
 
-    const result = await model.generateContent(fullPrompt);
-    const text = result.response.text();
+        return NextResponse.json({ 
+          result: text, 
+          usedModel: modelName 
+        });
 
-    return NextResponse.json({ result: text });
+      } catch (err: any) {
+        lastError = err;
+        const statusCode = err.status || err.response?.status;
+        console.warn(`Model ${modelName} failed with status ${statusCode || 'unknown'}. Error: ${err.message}`);
+
+        // Try next fallback for 404 or any non-auth error
+        if (statusCode === 401 || statusCode === 403) {
+          break; 
+        }
+        continue;
+      }
+    }
+
+    return NextResponse.json({ 
+      error: "Service temporarily unavailable", 
+      details: lastError?.message || "All stable models in fallback chain failed" 
+    }, { status: lastError?.status || 500 });
+
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to generate content" }, { status: 500 });
+    console.error("Critical Gemini API Error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

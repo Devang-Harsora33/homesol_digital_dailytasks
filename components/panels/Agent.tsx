@@ -9,6 +9,7 @@ interface ChatMessage {
 
 export function Agent() {
   const [inputMsg, setInputMsg] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "Hi! I'm your Homesol Digital marketing agent powered by Gemini. Ask me anything — I'll write scripts, find contacts, fix problems, and plan your content. What do you need?" }
   ]);
@@ -27,8 +28,11 @@ export function Agent() {
       const response = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Passing the full history
-        body: JSON.stringify({ prompt: newMsgs.map(m => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.content}`).join('\n\n') + '\n\nAgent:' }),
+        // Passing the full history and selected model
+        body: JSON.stringify({ 
+          prompt: newMsgs.map(m => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.content}`).join('\n\n') + '\n\nAgent:',
+          model: selectedModel
+        }),
       });
 
       const data = await response.json();
@@ -44,7 +48,7 @@ export function Agent() {
 
   return (
     <div className="panel active">
-      <div className="section-title">AI Marketing Agent</div>
+      <div className="section-title">Ask AI</div>
       <div className="section-sub">Powered by model running via Next.js backend — ask anything, get instant scripts, contacts, strategies and fixes.</div>
 
       <div className="card" style={{ padding: '16px' }}>
@@ -78,7 +82,25 @@ export function Agent() {
           )}
         </div>
         
-        <div className="chat-input-row" style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', marginTop: '12px', padding: '0 4px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+             <span style={{ color: 'var(--accent)' }}>✨</span> Ask AI
+          </div>
+          <select 
+            className="form-select" 
+            style={{ width: '180px', padding: '4px 8px', fontSize: '12px', height: '32px' }}
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+          >
+            <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
+            <option value="gemini-3.0-pro">Gemini 3.0 Pro</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
+          </select>
+        </div>
+
+        <div className="chat-input-row" style={{ display: 'flex', gap: '8px' }}>
           <input 
             type="text" 
             className="form-input" 
